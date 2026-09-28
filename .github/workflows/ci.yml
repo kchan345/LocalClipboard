@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  wasm:
+    name: Build browser codec (wasm32)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+      - run: sh scripts/build-wasm.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lcf-wasm
+          path: web/lcf.wasm
+          if-no-files-found: error
+
+  test:
+    name: Test (${{ matrix.os }})
+    needs: wasm
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      LCF_REQUIRE_NODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: lcf-wasm
+          path: web
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: Swatinem/rust-cache@v2
+      - name: rustfmt
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+      - name: JavaScript syntax
+        shell: bash
+        run: for f in web/*.js; do node --check "$f"; done
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: tests
+        run: cargo test --workspace --all-targets
+      - name: Upload Cargo.lock
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cargo.lock
+          path: Cargo.lock
+
+  build:
+    name: Release build (${{ matrix.target }})
+    needs: wasm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, name: local-clipboard-linux-x64 }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest, name: local-clipboard-windows-x64.exe }
+          - { target: aarch64-apple-darwin, os: macos-latest, name: local-clipboard-macos-arm64 }
+          - { target: x86_64-apple-darwin, os: macos-latest, name: local-clipboard-macos-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: lcf-wasm
+          path: web
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Install musl tools
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: rustup target add ${{ matrix.target }}
+      - name: Build
+        shell: bash
+        env:
+          RUSTFLAGS: ${{ contains(matrix.target, 'windows-msvc') && '-C target-feature=+crt-static' || '' }}
+        run: cargo build --release --locked --target ${{ matrix.target }} || cargo build --release --target ${{ matrix.target }}
+      - name: Stage
+        shell: bash
+        run: |
+          mkdir -p dist
+          src=target/${{ matrix.target }}/release/local-clipboard
+          [ -f "$src.exe" ] && src="$src.exe"
+          cp "$src" "dist/${{ matrix.name }}"
+          ls -l dist
+      - name: Smoke test
+        if: matrix.target != 'x86_64-apple-darwin'
+        shell: bash
+        run: |
+          "dist/${{ matrix.name }}" --version
+          "dist/${{ matrix.name }}" --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/${{ matrix.name }}
+          if-no-files-found: error
+
+  e2e:
+    name: Browser end-to-end (Chromium)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: local-clipboard-linux-x64
+          path: bin
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Start server
+        run: |
+          chmod +x bin/local-clipboard-linux-x64
+          LOCAL_CLIPBOARD_NO_OPEN=1 nohup bin/local-clipboard-linux-x64 --port 8080 > server.log 2>&1 &
+          for i in $(seq 1 50); do curl -fs http://127.0.0.1:8080/api/version && break; sleep 0.2; done
+          echo
+          LAN_IP=$(hostname -I | awk '{print $1}')
+          echo "LC_URL=http://$LAN_IP:8080" >> "$GITHUB_ENV"
+          echo "LC_LOCAL_URL=http://127.0.0.1:8080" >> "$GITHUB_ENV"
+          echo "LAN address: $LAN_IP"
+      - name: Run Playwright
+        working-directory: e2e
+        run: npx playwright test
+      - name: Server log
+        if: always()
+        run: cat server.log || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results

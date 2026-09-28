@@ -1,0 +1,13 @@
+[package]
+name = "lcf-wasm"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "WebAssembly build of the LCF1 codec for the browser (streaming lz4 chunk compression/decompression)"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+lcf = { path = "../lcf" }

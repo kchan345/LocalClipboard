@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build, e.g. v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - run: sh scripts/build-wasm.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lcf-wasm
+          path: web/lcf.wasm
+
+  build:
+    needs: wasm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, name: local-clipboard-linux-x64 }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest, name: local-clipboard-windows-x64.exe }
+          - { target: aarch64-apple-darwin, os: macos-latest, name: local-clipboard-macos-arm64 }
+          - { target: x86_64-apple-darwin, os: macos-latest, name: local-clipboard-macos-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: lcf-wasm
+          path: web
+      - name: Install musl tools
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: rustup target add ${{ matrix.target }}
+      - name: Build
+        shell: bash
+        env:
+          LOCAL_CLIPBOARD_VERSION: ${{ env.TAG }}
+          RUSTFLAGS: ${{ contains(matrix.target, 'windows-msvc') && '-C target-feature=+crt-static' || '' }}
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Stage
+        shell: bash
+        run: |
+          mkdir -p dist
+          src=target/${{ matrix.target }}/release/local-clipboard
+          [ -f "$src.exe" ] && src="$src.exe"
+          cp "$src" "dist/${{ matrix.name }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/${{ matrix.name }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: local-clipboard-*
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum local-clipboard-* > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
+          gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>Local Clipboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="updateBanner" class="banner" hidden>
+      <span>🔔 Version <strong id="latestVersion"></strong> is available.</span>
+      <a id="updateLink" class="banner-btn" href="#" target="_blank" rel="noopener noreferrer">Get it</a>
+      <button id="dismissUpdate" class="banner-close" type="button" aria-label="Dismiss">✕</button>
+    </div>
+
+    <main class="shell">
+      <header class="top">
+        <h1>📋 Local Clipboard</h1>
+        <div id="status" class="pill offline" role="status" data-testid="status">Connecting…</div>
+      </header>
+
+      <section id="qrSection" class="card qr">
+        <div class="row">
+          <span class="muted">📱 Connect another device</span>
+          <button id="qrToggle" class="ghost" type="button" aria-expanded="false">Show QR code</button>
+        </div>
+        <div id="qrBody" class="qr-body" hidden>
+          <img id="qrImage" alt="QR code with this server's address" width="220" height="220" />
+          <p class="muted small">Scan the code with your phone. Both devices must be on the same network.</p>
+        </div>
+      </section>
+
+      <section class="card toolbar">
+        <label class="muted" for="intervalSelect">Auto-clear</label>
+        <select id="intervalSelect">
+          <option value="0">Never</option>
+          <option value="1">1 min</option>
+          <option value="5">5 min</option>
+          <option value="10" selected>10 min</option>
+          <option value="30">30 min</option>
+          <option value="60">1 hour</option>
+          <option value="120">2 hours</option>
+        </select>
+        <span id="countdown" class="countdown" hidden></span>
+        <span class="spacer"></span>
+        <button id="pauseBtn" class="ghost icon" type="button" title="Pause timer" hidden>⏸</button>
+        <button id="clearBtn" class="danger" type="button" title="Clear all messages on every device">Clear</button>
+      </section>
+
+      <section id="messages" class="messages" aria-live="polite" data-testid="messages">
+        <p class="empty">No messages yet. Type something, or drop files or folders here.</p>
+      </section>
+
+      <section class="composer card">
+        <div class="compose-row">
+          <textarea
+            id="messageInput"
+            rows="2"
+            dir="auto"
+            placeholder="Type a message… (Enter to send, Shift+Enter for a new line)"
+            autocomplete="off"
+            disabled
+          ></textarea>
+          <div class="compose-buttons">
+            <input id="fileInput" type="file" multiple hidden />
+            <input id="folderInput" type="file" webkitdirectory multiple hidden />
+            <button id="attachFileBtn" class="icon-btn" type="button" title="Attach files" disabled>📎</button>
+            <button id="attachFolderBtn" class="icon-btn" type="button" title="Attach a folder" disabled>📁</button>
+            <button id="sendBtn" class="icon-btn primary" type="button" title="Send" disabled>➤</button>
+          </div>
+        </div>
+        <div id="chips" class="chips" hidden></div>
+      </section>
+    </main>
+
+    <footer class="footer muted small">
+      <span id="version">v…</span> ·
+      <a href="https://github.com/kchan345/LocalClipboard" target="_blank" rel="noopener noreferrer">LocalClipboard</a>
+      · files never leave the sharing device until someone downloads them
+    </footer>
+
+    <div id="dropOverlay" class="drop-overlay" hidden>
+      <div>📂 Drop files or folders to share</div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

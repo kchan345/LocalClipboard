@@ -1,0 +1,11 @@
+{
+  "name": "local-clipboard-e2e",
+  "private": true,
+  "description": "Browser end-to-end tests for LocalClipboard (run in GitHub Actions)",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

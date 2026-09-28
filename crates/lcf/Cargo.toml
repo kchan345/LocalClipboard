@@ -1,0 +1,10 @@
+[package]
+name = "lcf"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "LCF1 chunked transfer framing with per-chunk lz4 block compression (shared by the server and the browser WASM module)"
+publish = false
+
+[dependencies]
+lz4_flex = { version = "0.11", default-features = false, features = ["std", "safe-encode", "safe-decode"] }

@@ -1,0 +1,46 @@
+[workspace]
+members = [".", "crates/lcf", "crates/lcf-wasm"]
+resolver = "2"
+
+[package]
+name = "local-clipboard"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+description = "Share text, files and folders between devices on your local network from a single executable"
+repository = "https://github.com/kchan345/LocalClipboard"
+publish = false
+
+[[bin]]
+name = "local-clipboard"
+path = "src/main.rs"
+
+[dependencies]
+lcf = { path = "crates/lcf" }
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "signal"] }
+tokio-stream = "0.1"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+bytes = "1"
+crc32fast = "1"
+rand = "0.8"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+if-addrs = "0.13"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+tokio-tungstenite = "0.26"
+reqwest = { version = "0.12", default-features = false, features = ["stream"] }
+zip = { version = "2", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
