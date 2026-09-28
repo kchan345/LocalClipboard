@@ -22,7 +22,9 @@ jobs:
       - name: cargo fmt
         run: |
           rustfmt --version
-          if cargo fmt --all -- --check > fmt-check.txt 2>&1; then
+          rustfmt --edition 2021 --check src/http.rs && echo "direct rustfmt: http.rs OK" || echo "direct rustfmt: http.rs needs formatting"
+          if cargo fmt --all -v -- --check > fmt-check.txt 2>&1; then
+            cat fmt-check.txt | head -n 20
             echo "formatting OK"
           else
             head -n 60 fmt-check.txt
