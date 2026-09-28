@@ -143,7 +143,13 @@ fn text(v: serde_json::Value) -> Message {
 fn clean_name(name: &str, fallback: &str) -> String {
     let s: String = name
         .chars()
-        .map(|c| if c.is_control() || c == '/' || c == '\\' { '_' } else { c })
+        .map(|c| {
+            if c.is_control() || c == '/' || c == '\\' {
+                '_'
+            } else {
+                c
+            }
+        })
         .take(MAX_NAME_CHARS)
         .collect();
     let s = s.trim();
@@ -192,7 +198,10 @@ impl AppState {
             }),
             clear_notify: Arc::new(Notify::new()),
         });
-        tokio::spawn(run_clear_timer(Arc::downgrade(&st), st.clear_notify.clone()));
+        tokio::spawn(run_clear_timer(
+            Arc::downgrade(&st),
+            st.clear_notify.clone(),
+        ));
         st
     }
 
@@ -269,7 +278,11 @@ impl AppState {
     /// Removes a client. Its attachments become unavailable to everyone.
     pub fn unregister(&self, conn: u64) {
         let mut inner = self.lock();
-        let ip = inner.clients.remove(&conn).map(|c| c.ip).unwrap_or_default();
+        let ip = inner
+            .clients
+            .remove(&conn)
+            .map(|c| c.ip)
+            .unwrap_or_default();
         let ids: Vec<String> = inner
             .files
             .iter()
@@ -286,7 +299,10 @@ impl AppState {
             .filter(|(_, p)| p.owner == conn)
             .map(|(t, _)| t.clone())
             .collect();
-        let dropped: Vec<Pending> = tokens.iter().filter_map(|t| inner.relays.remove(t)).collect();
+        let dropped: Vec<Pending> = tokens
+            .iter()
+            .filter_map(|t| inner.relays.remove(t))
+            .collect();
         if !ids.is_empty() {
             Self::broadcast_locked(&mut inner, text(json!({"type": "unavailable", "ids": ids})));
         }
@@ -320,9 +336,20 @@ impl AppState {
             let kind = f.kind;
             FileMeta {
                 id: id.clone(),
-                name: clean_name(&f.name, if kind == FileKind::Dir { "folder" } else { "file" }),
+                name: clean_name(
+                    &f.name,
+                    if kind == FileKind::Dir {
+                        "folder"
+                    } else {
+                        "file"
+                    },
+                ),
                 size: f.size,
-                mime: if kind == FileKind::Dir { String::new() } else { clean_mime(&f.mime) },
+                mime: if kind == FileKind::Dir {
+                    String::new()
+                } else {
+                    clean_mime(&f.mime)
+                },
                 kind,
                 count: if kind == FileKind::Dir { f.count } else { 1 },
             }
@@ -540,10 +567,17 @@ mod tests {
         let msgs = drain(&mut rx1);
         assert_eq!(msgs[0]["type"], "hello");
         assert_eq!(msgs[1]["type"], "config");
-        let counts: Vec<_> = msgs.iter().filter(|m| m["type"] == "clients").map(|m| m["count"].clone()).collect();
+        let counts: Vec<_> = msgs
+            .iter()
+            .filter(|m| m["type"] == "clients")
+            .map(|m| m["count"].clone())
+            .collect();
         assert_eq!(counts, vec![json!(1), json!(1), json!(2)]);
 
-        st.handle_client_text(c, r#"{"ref":"r1","text":"hi","file":{"name":"../a.txt","size":3,"type":"text/plain"}}"#);
+        st.handle_client_text(
+            c,
+            r#"{"ref":"r1","text":"hi","file":{"name":"../a.txt","size":3,"type":"text/plain"}}"#,
+        );
         let m = drain(&mut rx2).pop().unwrap();
         assert_eq!(m["senderIp"], "10.0.0.2");
         assert_eq!(m["ref"], "r1");
@@ -553,31 +587,48 @@ mod tests {
 
         st.unregister(c);
         let msgs = drain(&mut rx1);
-        assert!(msgs.iter().any(|m| m["type"] == "unavailable" && m["ids"][0] == id.as_str()));
+        assert!(msgs
+            .iter()
+            .any(|m| m["type"] == "unavailable" && m["ids"][0] == id.as_str()));
         assert_eq!(st.file_meta(&id).unwrap_err(), TransferError::Gone);
-        assert_eq!(st.request_transfer(&id, Mode::Plain).err(), Some(TransferError::Gone));
+        assert_eq!(
+            st.request_transfer(&id, Mode::Plain).err(),
+            Some(TransferError::Gone)
+        );
         st.unregister(a);
     }
 
     #[tokio::test]
     async fn transfer_limits_and_single_use_tokens() {
-        let st = AppState::start(Config { max_transfers_per_sender: 1, ..cfg() });
+        let st = AppState::start(Config {
+            max_transfers_per_sender: 1,
+            ..cfg()
+        });
         let (tx, mut rx) = mpsc::channel(64);
         let owner = st.register("10.0.0.3".into(), tx);
         st.handle_client_text(owner, r#"{"file":{"name":"x.bin","size":1}}"#);
-        let id = drain(&mut rx).pop().unwrap()["id"].as_str().unwrap().to_string();
+        let id = drain(&mut rx).pop().unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
         let t1 = st.request_transfer(&id, Mode::Plain).unwrap();
         let req = drain(&mut rx).pop().unwrap();
         assert_eq!(req["type"], "fileRequest");
         assert_eq!(req["token"], t1.token.as_str());
-        assert_eq!(st.request_transfer(&id, Mode::Plain).err(), Some(TransferError::Busy));
+        assert_eq!(
+            st.request_transfer(&id, Mode::Plain).err(),
+            Some(TransferError::Busy)
+        );
         let p = st.claim(&t1.token).unwrap();
         assert!(st.claim(&t1.token).is_none());
         drop(p);
         let t2 = st.request_transfer(&id, Mode::Passthrough).unwrap();
         st.cancel(&t2.token);
         assert!(st.claim(&t2.token).is_none());
-        assert_eq!(st.request_transfer("nope", Mode::Plain).err(), Some(TransferError::NotFound));
+        assert_eq!(
+            st.request_transfer("nope", Mode::Plain).err(),
+            Some(TransferError::NotFound)
+        );
     }
 
     #[tokio::test]
@@ -589,7 +640,10 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(200)).await;
         let msgs = drain(&mut rx);
         assert!(msgs.iter().any(|m| m["type"] == "clear"));
-        let id = msgs.iter().find(|m| m["file"].is_object()).unwrap()["id"].as_str().unwrap().to_string();
+        let id = msgs.iter().find(|m| m["file"].is_object()).unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
         assert_eq!(st.file_meta(&id).unwrap_err(), TransferError::NotFound);
 
         st.toggle_pause();

@@ -32,7 +32,8 @@ pub fn test_config() -> Config {
 pub async fn connect(addr: SocketAddr, path: &str, forwarded_for: Option<&str>) -> Ws {
     let mut req = format!("ws://{addr}{path}").into_client_request().unwrap();
     if let Some(ip) = forwarded_for {
-        req.headers_mut().insert("x-forwarded-for", ip.parse().unwrap());
+        req.headers_mut()
+            .insert("x-forwarded-for", ip.parse().unwrap());
     }
     let (ws, _) = tokio_tungstenite::connect_async(req).await.unwrap();
     ws
@@ -96,7 +97,9 @@ pub async fn send_frames(relay: &mut Ws, data: &[u8], chunk: usize) {
 
 pub async fn send_end(relay: &mut Ws) {
     relay
-        .send(Message::Binary(lcf::encode_control(lcf::Kind::End, &[]).into()))
+        .send(Message::Binary(
+            lcf::encode_control(lcf::Kind::End, &[]).into(),
+        ))
         .await
         .unwrap();
 }

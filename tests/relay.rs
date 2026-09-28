@@ -33,11 +33,20 @@ async fn single_file_is_relayed_and_decoded() {
 
     let r = dl.await.unwrap();
     assert_eq!(r.status(), 200);
-    assert_eq!(r.headers()["content-length"], data.len().to_string().as_str());
+    assert_eq!(
+        r.headers()["content-length"],
+        data.len().to_string().as_str()
+    );
     assert_eq!(r.headers()["content-type"], "text/plain");
-    let cd = r.headers()["content-disposition"].to_str().unwrap().to_string();
+    let cd = r.headers()["content-disposition"]
+        .to_str()
+        .unwrap()
+        .to_string();
     assert!(cd.starts_with("attachment;"), "{cd}");
-    assert!(cd.contains("filename*=UTF-8''notes%20%E2%80%93%202024.txt"), "{cd}");
+    assert!(
+        cd.contains("filename*=UTF-8''notes%20%E2%80%93%202024.txt"),
+        "{cd}"
+    );
     let body = r.bytes().await.unwrap();
     assert!(body[..] == data[..], "body mismatch");
 
@@ -144,7 +153,11 @@ async fn folder_is_streamed_as_zip() {
     let r = dl.await.unwrap();
     assert_eq!(r.status(), 200);
     assert_eq!(r.headers()["content-type"], "application/zip");
-    let declared: usize = r.headers()["content-length"].to_str().unwrap().parse().unwrap();
+    let declared: usize = r.headers()["content-length"]
+        .to_str()
+        .unwrap()
+        .parse()
+        .unwrap();
     assert!(r.headers()["content-disposition"]
         .to_str()
         .unwrap()
@@ -154,7 +167,9 @@ async fn folder_is_streamed_as_zip() {
 
     let mut zip = zip::ZipArchive::new(Cursor::new(body.to_vec())).unwrap();
     for (path, data) in &files {
-        let mut e = zip.by_name(path).unwrap_or_else(|_| panic!("missing {path}"));
+        let mut e = zip
+            .by_name(path)
+            .unwrap_or_else(|_| panic!("missing {path}"));
         let mut got = Vec::new();
         e.read_to_end(&mut got).unwrap();
         assert!(&got == data, "{path} differs");
@@ -174,7 +189,10 @@ async fn owner_disconnect_makes_attachments_unavailable() {
     let m = wait_for(&mut viewer, |m| m["type"] == "unavailable").await;
     assert_eq!(m["ids"], json!([id]));
     assert_eq!(get(format!("http://{addr}/file/{id}")).await.status(), 410);
-    assert_eq!(get(format!("http://{addr}/file/unknown")).await.status(), 404);
+    assert_eq!(
+        get(format!("http://{addr}/file/unknown")).await.status(),
+        404
+    );
 }
 
 #[tokio::test]
@@ -220,9 +238,11 @@ async fn unresponsive_owner_times_out() {
     assert_eq!(r.status(), 504);
     let (token, _) = wait_request(&mut owner, &id).await;
     // The abandoned token can no longer be used.
-    assert!(tokio_tungstenite::connect_async(format!("ws://{addr}/relay/{token}"))
-        .await
-        .is_err());
+    assert!(
+        tokio_tungstenite::connect_async(format!("ws://{addr}/relay/{token}"))
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]

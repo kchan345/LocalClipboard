@@ -199,8 +199,7 @@ impl Plan {
         }
         let cd_offset = offset;
         let cd_size: u64 = entries.iter().map(PlannedEntry::central_len).sum();
-        let zip64_end =
-            entries.len() >= 0xFFFF || cd_offset >= U32_MAX || cd_size >= U32_MAX;
+        let zip64_end = entries.len() >= 0xFFFF || cd_offset >= U32_MAX || cd_size >= U32_MAX;
         let total_len = cd_offset + cd_size + if zip64_end { 56 + 20 } else { 0 } + 22;
         Ok(Plan {
             entries,
@@ -280,7 +279,11 @@ fn write_central(b: &mut Vec<u8>, e: &PlannedEntry, crc: u32) {
     put16(b, e.time);
     put16(b, e.date);
     put32(b, crc);
-    let sz = if e.z64_size { 0xFFFF_FFFF } else { e.size as u32 };
+    let sz = if e.z64_size {
+        0xFFFF_FFFF
+    } else {
+        e.size as u32
+    };
     put32(b, sz);
     put32(b, sz);
     put16(b, e.name.len() as u16);
@@ -294,7 +297,14 @@ fn write_central(b: &mut Vec<u8>, e: &PlannedEntry, crc: u32) {
         0o100644u32 << 16
     };
     put32(b, external);
-    put32(b, if e.z64_off { 0xFFFF_FFFF } else { e.offset as u32 });
+    put32(
+        b,
+        if e.z64_off {
+            0xFFFF_FFFF
+        } else {
+            e.offset as u32
+        },
+    );
     b.extend_from_slice(e.name.as_bytes());
     let extra = e.central_extra_len();
     if extra > 0 {
@@ -430,8 +440,22 @@ impl ZipStream {
         let n16 = if n >= 0xFFFF { 0xFFFF } else { n as u16 };
         put16(&mut b, n16);
         put16(&mut b, n16);
-        put32(&mut b, if p.cd_size >= U32_MAX { 0xFFFF_FFFF } else { p.cd_size as u32 });
-        put32(&mut b, if p.cd_offset >= U32_MAX { 0xFFFF_FFFF } else { p.cd_offset as u32 });
+        put32(
+            &mut b,
+            if p.cd_size >= U32_MAX {
+                0xFFFF_FFFF
+            } else {
+                p.cd_size as u32
+            },
+        );
+        put32(
+            &mut b,
+            if p.cd_offset >= U32_MAX {
+                0xFFFF_FFFF
+            } else {
+                p.cd_offset as u32
+            },
+        );
         put16(&mut b, 0);
         self.written += b.len() as u64;
         Ok(b.into())
@@ -461,7 +485,17 @@ mod tests {
         assert_eq!(sanitize_path("a/b/c.txt").unwrap(), "a/b/c.txt");
         assert_eq!(sanitize_path("a\\b\\c.txt").unwrap(), "a/b/c.txt");
         assert_eq!(sanitize_path("./a//b/").unwrap(), "a/b");
-        for bad in ["/etc/passwd", "../x", "a/../../x", "C:\\x", "c:x", "", "a/\0", "./", "a/\n"] {
+        for bad in [
+            "/etc/passwd",
+            "../x",
+            "a/../../x",
+            "C:\\x",
+            "c:x",
+            "",
+            "a/\0",
+            "./",
+            "a/\n",
+        ] {
             assert!(sanitize_path(bad).is_err(), "{bad:?} should be rejected");
         }
     }
@@ -479,7 +513,11 @@ mod tests {
 
     #[test]
     fn length_is_exact_and_chunking_independent() {
-        let manifest = vec![m("top/a.txt", 10), m("top/empty.bin", 0), m("top/sub/b.bin", 70_000)];
+        let manifest = vec![
+            m("top/a.txt", 10),
+            m("top/empty.bin", 0),
+            m("top/sub/b.bin", 70_000),
+        ];
         let mut dir = m("top/emptydir", 0);
         dir.dir = true;
         let mut manifest = manifest;
@@ -512,7 +550,10 @@ mod tests {
         assert_eq!(z.finish(), Err(ZipError::Truncated));
         let mut z = ZipStream::new(plan);
         z.begin();
-        assert_eq!(z.feed(Bytes::from_static(b"abcde")), Err(ZipError::TooMuchData));
+        assert_eq!(
+            z.feed(Bytes::from_static(b"abcde")),
+            Err(ZipError::TooMuchData)
+        );
     }
 
     #[test]

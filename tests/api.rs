@@ -17,31 +17,64 @@ async fn static_assets_and_version() {
         ("/worker.js", "text/javascript"),
         ("/lcf.wasm", "application/wasm"),
     ] {
-        let r = http().get(format!("http://{addr}{path}")).send().await.unwrap();
+        let r = http()
+            .get(format!("http://{addr}{path}"))
+            .send()
+            .await
+            .unwrap();
         assert_eq!(r.status(), 200, "{path}");
-        assert!(r.headers()["content-type"].to_str().unwrap().starts_with(ct), "{path}");
-        assert!(r.headers()["cache-control"].to_str().unwrap().contains("no-cache"));
+        assert!(
+            r.headers()["content-type"]
+                .to_str()
+                .unwrap()
+                .starts_with(ct),
+            "{path}"
+        );
+        assert!(r.headers()["cache-control"]
+            .to_str()
+            .unwrap()
+            .contains("no-cache"));
         let body = r.bytes().await.unwrap();
         if path == "/lcf.wasm" {
             assert_eq!(&body[..4], b"\0asm");
         }
     }
-    let v = http().get(format!("http://{addr}/api/version")).send().await.unwrap();
+    let v = http()
+        .get(format!("http://{addr}/api/version"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(v.text().await.unwrap(), local_clipboard::config::VERSION);
-    let nf = http().get(format!("http://{addr}/nope")).send().await.unwrap();
+    let nf = http()
+        .get(format!("http://{addr}/nope"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(nf.status(), 404);
 }
 
 #[tokio::test]
 async fn qr_code_encodes_advertised_host() {
     let addr = spawn(test_config()).await;
-    let r = http().get(format!("http://{addr}/qr")).send().await.unwrap();
+    let r = http()
+        .get(format!("http://{addr}/qr"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 200);
     assert_eq!(r.headers()["content-type"], "image/svg+xml");
     assert!(r.text().await.unwrap().contains("<svg"));
 
-    let addr = spawn(local_clipboard::Config { advertised_host: None, ..test_config() }).await;
-    let r = http().get(format!("http://{addr}/qr")).send().await.unwrap();
+    let addr = spawn(local_clipboard::Config {
+        advertised_host: None,
+        ..test_config()
+    })
+    .await;
+    let r = http()
+        .get(format!("http://{addr}/qr"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 500);
 }
 
@@ -50,9 +83,18 @@ async fn control_endpoints_validate_input() {
     let addr = spawn(test_config()).await;
     let url = |p: &str| format!("http://{addr}{p}");
     for p in ["/clear", "/set-interval", "/toggle-pause"] {
-        assert_eq!(http().get(url(p)).send().await.unwrap().status(), 405, "{p}");
+        assert_eq!(
+            http().get(url(p)).send().await.unwrap().status(),
+            405,
+            "{p}"
+        );
     }
-    let bad = http().post(url("/set-interval")).body("{").send().await.unwrap();
+    let bad = http()
+        .post(url("/set-interval"))
+        .body("{")
+        .send()
+        .await
+        .unwrap();
     assert_eq!(bad.status(), 400);
     let neg = http()
         .post(url("/set-interval"))
@@ -65,7 +107,10 @@ async fn control_endpoints_validate_input() {
     let mut ws = connect(addr, "/ws", None).await;
     let first = wait_for(&mut ws, |m| m["type"] == "config").await;
     assert_eq!(first["config"]["intervalMin"], 10);
-    assert!(first["config"]["nextClearTime"].as_str().unwrap().ends_with('Z'));
+    assert!(first["config"]["nextClearTime"]
+        .as_str()
+        .unwrap()
+        .ends_with('Z'));
 
     let ok = http()
         .post(url("/set-interval"))
@@ -77,11 +122,22 @@ async fn control_endpoints_validate_input() {
     let c = wait_for(&mut ws, |m| m["type"] == "config").await;
     assert_eq!(c["config"]["intervalMin"], 5);
 
-    assert_eq!(http().post(url("/toggle-pause")).send().await.unwrap().status(), 204);
+    assert_eq!(
+        http()
+            .post(url("/toggle-pause"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        204
+    );
     let c = wait_for(&mut ws, |m| m["type"] == "config").await;
     assert_eq!(c["config"]["paused"], true);
 
-    assert_eq!(http().post(url("/clear")).send().await.unwrap().status(), 204);
+    assert_eq!(
+        http().post(url("/clear")).send().await.unwrap().status(),
+        204
+    );
     wait_for(&mut ws, |m| m["type"] == "clear").await;
     let c = wait_for(&mut ws, |m| m["type"] == "config").await;
     assert_eq!(c["config"]["paused"], true);

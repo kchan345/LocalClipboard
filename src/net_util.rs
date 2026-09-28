@@ -135,7 +135,10 @@ mod tests {
         assert_eq!(real_ip(&h, peer()), "10.0.0.9");
         h.insert("x-real-ip", HeaderValue::from_static(" 192.168.1.7 "));
         assert_eq!(real_ip(&h, peer()), "192.168.1.7");
-        h.insert("x-forwarded-for", HeaderValue::from_static("192.168.1.5, 172.18.0.1"));
+        h.insert(
+            "x-forwarded-for",
+            HeaderValue::from_static("192.168.1.5, 172.18.0.1"),
+        );
         assert_eq!(real_ip(&h, peer()), "192.168.1.5");
         let v6: SocketAddr = "[::ffff:192.168.1.3]:80".parse().unwrap();
         assert_eq!(real_ip(&HeaderMap::new(), v6), "192.168.1.3");

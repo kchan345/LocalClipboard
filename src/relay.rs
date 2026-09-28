@@ -64,7 +64,9 @@ pub struct ActiveGuard(Arc<AtomicUsize>);
 impl ActiveGuard {
     pub fn try_acquire(counter: &Arc<AtomicUsize>, max: usize) -> Option<ActiveGuard> {
         counter
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| (n < max).then_some(n + 1))
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                (n < max).then_some(n + 1)
+            })
             .ok()
             .map(|_| ActiveGuard(counter.clone()))
     }

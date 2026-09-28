@@ -21,7 +21,10 @@ fn push(out: &mut Vec<u8>, b: &[u8]) {
 }
 
 fn node_available() -> bool {
-    Command::new("node").arg("--version").output().is_ok_and(|o| o.status.success())
+    Command::new("node")
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success())
 }
 
 #[test]
@@ -44,7 +47,12 @@ fn worker_wasm_codec_matches_rust() {
         Vec::new(),
         b"a".to_vec(),
         b"abc".repeat(30),
-        "Grüße, 世界! ".repeat(20_000).into_bytes().into_iter().take(lcf::MAX_CHUNK).collect(),
+        "Grüße, 世界! "
+            .repeat(20_000)
+            .into_bytes()
+            .into_iter()
+            .take(lcf::MAX_CHUNK)
+            .collect(),
         vec![0u8; lcf::MAX_CHUNK],
     ];
     let mut s = 0x9e3779b97f4a7c15u64;

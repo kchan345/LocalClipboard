@@ -31,10 +31,22 @@ const MAX_WS_MESSAGE: usize = 1 << 20;
 
 pub fn router(state: Shared) -> Router {
     Router::new()
-        .route("/", get(|| asset("text/html; charset=utf-8", INDEX_HTML.as_bytes())))
-        .route("/styles.css", get(|| asset("text/css; charset=utf-8", STYLES_CSS.as_bytes())))
-        .route("/script.js", get(|| asset("text/javascript; charset=utf-8", SCRIPT_JS.as_bytes())))
-        .route("/worker.js", get(|| asset("text/javascript; charset=utf-8", WORKER_JS.as_bytes())))
+        .route(
+            "/",
+            get(|| asset("text/html; charset=utf-8", INDEX_HTML.as_bytes())),
+        )
+        .route(
+            "/styles.css",
+            get(|| asset("text/css; charset=utf-8", STYLES_CSS.as_bytes())),
+        )
+        .route(
+            "/script.js",
+            get(|| asset("text/javascript; charset=utf-8", SCRIPT_JS.as_bytes())),
+        )
+        .route(
+            "/worker.js",
+            get(|| asset("text/javascript; charset=utf-8", WORKER_JS.as_bytes())),
+        )
         .route("/lcf.wasm", get(|| asset("application/wasm", LCF_WASM)))
         .route("/api/version", get(version))
         .route("/qr", get(qr))
@@ -62,18 +74,29 @@ async fn asset(content_type: &'static str, body: &'static [u8]) -> Response {
     let mut res = Response::new(Body::from(body));
     let h = res.headers_mut();
     h.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-    h.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+    h.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
     no_cache(h);
     res
 }
 
 async fn version(State(st): State<Shared>) -> Response {
-    ([(header::CONTENT_TYPE, "text/plain")], st.cfg.version.clone()).into_response()
+    (
+        [(header::CONTENT_TYPE, "text/plain")],
+        st.cfg.version.clone(),
+    )
+        .into_response()
 }
 
 async fn qr(State(st): State<Shared>) -> Response {
     let Some(host) = st.cfg.advertised_host.clone() else {
-        return (StatusCode::INTERNAL_SERVER_ERROR, "Unable to determine local IP").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Unable to determine local IP",
+        )
+            .into_response();
     };
     let url = format!("http://{host}:{}", st.cfg.port);
     match QrCode::with_error_correction_level(url.as_bytes(), EcLevel::M) {
@@ -84,12 +107,18 @@ async fn qr(State(st): State<Shared>) -> Response {
                 .quiet_zone(true)
                 .build();
             let mut res = Response::new(Body::from(svg));
-            res.headers_mut()
-                .insert(header::CONTENT_TYPE, HeaderValue::from_static("image/svg+xml"));
+            res.headers_mut().insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("image/svg+xml"),
+            );
             no_cache(res.headers_mut());
             res
         }
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Error generating QR code").into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Error generating QR code",
+        )
+            .into_response(),
     }
 }
 
@@ -172,7 +201,10 @@ async fn download(State(st): State<Shared>, Path(id): Path<String>) -> Response 
     if let Ok(v) = HeaderValue::from_str(&content_disposition(&attach.filename)) {
         h.insert(header::CONTENT_DISPOSITION, v);
     }
-    h.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+    h.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
     h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     res
 }
@@ -196,7 +228,9 @@ async fn pull_session(st: Shared, id: String, mut socket: WebSocket) {
         },
         Err(e) => {
             let _ = socket
-                .send(Message::Binary(lcf::encode_control(lcf::Kind::Error, e.as_bytes()).into()))
+                .send(Message::Binary(
+                    lcf::encode_control(lcf::Kind::Error, e.as_bytes()).into(),
+                ))
                 .await;
             CloseFrame {
                 code: 1011,
