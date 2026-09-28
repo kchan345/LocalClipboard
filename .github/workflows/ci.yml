@@ -21,9 +21,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: cargo fmt
         run: |
-          cargo fmt --all
-          git diff > fmt.patch
-          if [ -s fmt.patch ]; then cat fmt.patch; echo "::error::code is not rustfmt-formatted (apply the fmt-patch artifact)"; exit 1; fi
+          rustfmt --version
+          if cargo fmt --all -- --check > fmt-check.txt 2>&1; then
+            echo "formatting OK"
+          else
+            head -n 60 fmt-check.txt
+            cargo fmt --all
+            git diff > fmt.patch
+            git diff --stat
+            echo "::error::code is not rustfmt-formatted (apply the fmt-patch artifact)"
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -69,15 +77,9 @@ jobs:
         shell: bash
         run: for f in web/*.js; do node --check "$f"; done
       - name: clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: tests
-        run: cargo test --workspace --all-targets
-      - name: Upload Cargo.lock
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Cargo.lock
-          path: Cargo.lock
+        run: cargo test --workspace --all-targets --locked
 
   build:
     name: Release build (${{ matrix.target }})
@@ -108,7 +110,7 @@ jobs:
         shell: bash
         env:
           RUSTFLAGS: ${{ contains(matrix.target, 'windows-msvc') && '-C target-feature=+crt-static' || '' }}
-        run: cargo build --release --locked --target ${{ matrix.target }} || cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --locked --target ${{ matrix.target }}
       - name: Stage
         shell: bash
         run: |
